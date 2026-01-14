@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { trackEvent } from "@/lib/posthog";
 
 interface ShareComponentProps {
   biasName: string;
@@ -12,6 +13,10 @@ export function ShareComponent({ biasName, isVisible }: ShareComponentProps) {
 
   const handleShare = async () => {
     const shareText = `I spotted the ${biasName} in this post. Can you? 🧠 ${window.location.href}`;
+
+    trackEvent('individual_answer_shared', {
+      bias_type: biasName
+    });
 
     try {
       await navigator.clipboard.writeText(shareText);

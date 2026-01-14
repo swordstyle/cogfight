@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { PostComponent } from "@/components/PostComponent";
 import { QuizComponent } from "@/components/QuizComponent";
 import { ShareComponent } from "@/components/ShareComponent";
 import { biasPosts } from "@/data/biases";
+import { trackEvent } from "@/lib/posthog";
 
 export default function Home() {
   const [currentPostIndex, setCurrentPostIndex] = useState(0);
@@ -15,9 +16,21 @@ export default function Home() {
 
   const currentPost = biasPosts[currentPostIndex];
 
+  useEffect(() => {
+    trackEvent('game_started');
+  }, []);
+
   const handleAnswer = (isCorrect: boolean) => {
     setAnswered(true);
     setTotalAttempts(prev => prev + 1);
+
+    trackEvent('question_answered', {
+      question_number: currentPostIndex + 1,
+      bias_type: currentPost.correctAnswer,
+      is_correct: isCorrect,
+      total_attempts: totalAttempts + 1
+    });
+
     if (isCorrect) {
       setCorrectCount(prev => prev + 1);
     }
@@ -32,13 +45,34 @@ export default function Home() {
     setCurrentPostIndex(nextIndex);
     setAnswered(false);
     setShowQuiz(true);
+
+    trackEvent('next_question', {
+      question_number: nextIndex + 1
+    });
   };
 
   const isGameComplete = currentPostIndex + 1 >= biasPosts.length && answered;
   const finalScore = Math.round((correctCount / biasPosts.length) * 100);
 
+  useEffect(() => {
+    if (isGameComplete) {
+      trackEvent('game_completed', {
+        final_score: finalScore,
+        correct_answers: correctCount,
+        total_questions: biasPosts.length,
+        score_category: finalScore >= 90 ? 'master' : finalScore >= 75 ? 'champion' : finalScore >= 60 ? 'getting_there' : 'keep_practicing'
+      });
+    }
+  }, [isGameComplete, finalScore, correctCount]);
+
   const handleShareFinalScore = () => {
     const shareText = `I just completed the Echo Chamber bias detection challenge! 🧠\n\nFinal Score: ${correctCount}/${biasPosts.length} (${finalScore}%)\n\nCan you spot cognitive biases too? ${window.location.href}`;
+
+    trackEvent('final_score_shared', {
+      final_score: finalScore,
+      correct_answers: correctCount,
+      total_questions: biasPosts.length
+    });
 
     if (navigator.share) {
       navigator.share({
